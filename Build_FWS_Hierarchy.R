@@ -50,10 +50,17 @@ write.csv(cmt_data, "full_raw_export.csv", row.names = F)
 # Remove any rows from consideration if the RPTORGCODE does not exist.
 # write diagnostic file and warn user.
 nonexistent_rptorgcode <- subset(cmt_data, !(RPTORGCODE %in% ORGCODE), select = RPTORGCODE) %>% distinct(.)
+<<<<<<< HEAD
 if (file.exists("nonexistent_rptorgcode.csv")) {unlink("nonexistent_rptorgcode.csv")}
 if (nrow(nonexistent_rptorgcode) > 0) {
     warning(paste("The following orgcodes are listed to in RPTORGCODE but not ORGCODE.",
         "Likely cause, incomplete updates to CMT. Any ORGCODEs below these in the hierarchy will",
+=======
+if (nrow(nonexistent_rptorgcode) > 0) {
+    if (file.exists("nonexistent_rptorgcode.csv") {unlink("nonexistent_rptorgcode.csv")})
+    warning(paste("The following orgcodes are listed to in RPTORGCODE but not ORGCODE.",
+        "Likely cause, incomplete updates to CMT. Any ORGCODEs that below these in the hierarchy will",
+>>>>>>> 4d544f1b130b1f2a241c6d5426d82ff45718740e
         "be disregarded in constructing the trees. Written to nonexistent_rptorgcodes.csv",
         "Missing RPTORGCODES:", paste(nonexistent_rptorgcode, sep = ", ")))
     write.csv(nonexistent_rptorgcode, "nonexistent_rptorgcode.csv", row.names = F)
@@ -63,6 +70,7 @@ if (nrow(nonexistent_rptorgcode) > 0) {
 }
 
 # Look for any immediate infinite loops (i.e., one record's RPTORGCODE points
+<<<<<<< HEAD
 # right back at it). Warn user, write diagnostic file, and remove those rows from
 # CMT data. Note that it's OK for 90100, ignore that one.
 infinite_loops <- select(cmt_data, c(ORGCODE, RPTORGCODE)) %>%
@@ -80,6 +88,11 @@ if (nrow(nonexistent_rptorgcode) > 0) {
     # Otherwise create nonsense value to use in later function
     infinite_loops = -9999
 }
+=======
+# right back at it). Warn user and write diagnostic file.
+
+
+>>>>>>> 4d544f1b130b1f2a241c6d5426d82ff45718740e
 
 # Combine infinite_loops and into "bad_orgcodes", filter out any records right
 # off the bat
