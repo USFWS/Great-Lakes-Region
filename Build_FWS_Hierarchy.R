@@ -20,7 +20,7 @@ if (!dir.exists(paste0(".", outpath))) {
     dir.create(paste0(".", outpath))
 }
 
-# Load CMT data from a CSV file -----------------
+# Load CMT data from a CSV file, identify bad_rows -----------------
 
 # Get geo data, then merge with org data that includes rptcode
 cmt_data = fromJSON(
@@ -44,49 +44,67 @@ cmt_data = fromJSON(
                  "PHYSZIP", "PHYSZIP4", "PHONE", "FAX", "PHYSADD2",
                  "MAILADD2"))
 
+# Write a csv file for diagnostic purposes
+write.csv(cmt_data, "full_raw_export.csv", row.names = F)
 
-# There is currently an infinite loop in the ORGCODE -> RPTORGCODE
-# between 93000 and 93430. To fix, cheat and change 93000
-# (Assistant Director-National Wildlife Refuge System)
-# to report to 90100 (Director-U.S. Fish and Wildlife Service
-if (cmt_data$RPTORGCODE[cmt_data$ORGCODE==93000]==93430) {
-    ind = which(cmt_data$ORGCODE==93000)
-    cmt_data$RPTORGCODE[ind] = 90100
-    cmt_data$loop_orgcode[ind] = 90100
-    cmt_data$pathString[ind] = "90100/93000"
-    warning(paste("There is currently an infinite loop in the ORGCODE -> RPTORGCODE",
-                  "between 93000 and 93430. To fix, cheat and change 93000",
-                  "(Assistant Director-National Wildlife Refuge System)",
-                  "to report to 90100 (Director-U.S. Fish and Wildlife Service).",
-                  "Flagged for update to JAO.", sep = "\n"))
-    rm(ind)
+# Remove any rows from consideration if the RPTORGCODE does not exist.
+# write diagnostic file and warn user.
+nonexistent_rptorgcode <- subset(cmt_data, !(RPTORGCODE %in% ORGCODE), select = RPTORGCODE) %>% distinct(.)
+if (file.exists("nonexistent_rptorgcode.csv")) {unlink("nonexistent_rptorgcode.csv")}
+if (nrow(nonexistent_rptorgcode) > 0) {
+    warning(paste("The following orgcodes are listed to in RPTORGCODE but not ORGCODE.",
+        "Likely cause, incomplete updates to CMT. Any ORGCODEs below these in the hierarchy will",
+        "be disregarded in constructing the trees. Written to nonexistent_rptorgcodes.csv",
+        "Missing RPTORGCODES:", paste(nonexistent_rptorgcode, sep = ", ")))
+    write.csv(nonexistent_rptorgcode, "nonexistent_rptorgcode.csv", row.names = F)
+} else {
+    # Otherwise create nonsense value to use in later function
+    nonexistent_rptorgcode = -9999
 }
 
-# ROW 99660 has been deleted but still exists in RPTORGCODE,
-# Flagged for update to IT. And add in here manually for now.
-# Cheat for now and change it to 99661
-if (any(cmt_data$RPTORGCODE == 99660) & !any(cmt_data$ORGCODE == 99660)) {
-    inds = which(cmt_data$RPTORGCODE==99660)
-    cmt_data$RPTORGCODE[inds] = 99661
-    cmt_data$loop_orgcode[inds] = 99661
-    cmt_data$pathString[inds] = paste0("99661/", cmt_data$ORGCODE[inds])
-    warning(paste("ORGCODE = 99660 has been deleted but still exists in RPTORGCODE",
-                  "Flagged for update to JAO And add in here manually for now.",
-                  "Cheat for now and change it to 99661",sep = "\n"))
-    rm(inds)
+# Look for any immediate infinite loops (i.e., one record's RPTORGCODE points
+# right back at it). Warn user, write diagnostic file, and remove those rows from
+# CMT data. Note that it's OK for 90100, ignore that one.
+infinite_loops <- select(cmt_data, c(ORGCODE, RPTORGCODE)) %>%
+    left_join(., ., by = c("RPTORGCODE" = "ORGCODE"), suffix = c("_org", "_above")) %>%
+    subset(., ORGCODE == RPTORGCODE_above & ORGCODE != 90100, select = ORGCODE) %>%
+    distinct(.)
+if (file.exists("infinite_loops.csv")) {unlink("infinite_loops.csv")}
+if (nrow(nonexistent_rptorgcode) > 0) {
+    warning(paste("The following orgcodes and rptorgcodes point at each other and form",
+                  "an infinite loop. These rows and any offices under them will be removed",
+                  "from consideration. Written to infinite_loops.csv",
+                  "Looping ORGCODEs:", paste(infinite_loops, sep = ", ")))
+    write.csv(infinite_loops, "infinite_loops.csv", row.names = F)
+} else {
+    # Otherwise create nonsense value to use in later function
+    infinite_loops = -9999
 }
 
+# Combine infinite_loops and into "bad_orgcodes", filter out any records right
+# off the bat
+bad_orgcodes = unlist(c(infinite_loops, nonexistent_rptorgcode))
+attributes(bad_orgcodes) = NULL
+rm(infinite_loops, nonexistent_rptorgcode)
+cmt_data <- mutate(cmt_data, bad_row = ORGCODE %in% bad_orgcodes | RPTORGCODE %in% bad_orgcodes)
 
-
-
-# Loop through to build pathString -----------
+# Loop through to build pathString, remove bad_rows -----------
 
 # Function to sub in higher string
 # See here on having only  "..." as a parameter
+# Warning - uses global variable bad_orgcodes
 update_row <- function(...) {
     row <- tibble(...)
+
+    #print(paste(row$ORGCODE, row$RPTORGCODE, row$pathSting))
     # Just return the row if you're already at directors office
-    if (row$loop_orgcode == 90100) {return(row)}
+    if (row$loop_orgcode == 90100 | row$bad_row) {return(row)}
+
+    # If loop_orgcode is in bad_orgcodes, return row with
+    # flag to delete this row
+    if (row$loop_orgcode %in% bad_orgcodes) {
+        row$bad_row = TRUE; return(row)
+    }
 
     # Find corresponding row in cmt_data
     ind = which(cmt_data$ORGCODE == row$loop_orgcode)
@@ -105,7 +123,7 @@ update_row <- function(...) {
 
 # For my own interest, how many loops does it take?
 loop_ct = 0
-while(any(cmt_data$loop_orgcode != 90100)) {
+while(any(cmt_data$loop_orgcode != 90100 & !cmt_data$bad_row)) {
     loop_ct <- loop_ct + 1
     print(sprintf("Loop # %d", loop_ct))
 
@@ -118,7 +136,17 @@ while(any(cmt_data$loop_orgcode != 90100)) {
 }
 print(sprintf("Processing took %i loops", loop_ct))
 rm(loop_ct, update_row)
-#write.csv(cmt_data, "cmt_data_pathString.csv", row.names = F)
+
+# Warn how many rows are being removed, write to csv
+if (file.exists("removed_orgcodes.csv")) {unlink("removed_orgcodes.csv")}
+if (sum(cmt_data$bad_row) > 0) {
+    warning(sprintf(paste("Removing %d offices that lead to infinite loops or non-existing RPTORGCODEs.",
+                        "These are written to removed_orgcodes.csv."), sum(cmt_data$bad_row)))
+    subset(cmt_data, bad_row) %>% write.csv(., "removed_orgcodes.csv", row.names = F)
+    # delete any rows flagged as bad
+    cmt_data <- subset(cmt_data, !bad_row)
+}
+cmt_data <- select(cmt_data, -bad_row)
 
 # Build overall data.tree and collapsibleTree, takes a bit. Also write an HQ only version --------------
 
