@@ -2,3 +2,9 @@
 .Rhistory
 .RData
 .Ruserdata
+nonexistent_rptorgcode.csv
+infinite_loops.csv
+full_raw_export.csv
+removed_orgcodes.csv
+output
+output.zip

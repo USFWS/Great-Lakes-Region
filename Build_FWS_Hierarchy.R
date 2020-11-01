@@ -44,37 +44,28 @@ cmt_data = fromJSON(
                  "PHYSZIP", "PHYSZIP4", "PHONE", "FAX", "PHYSADD2",
                  "MAILADD2"))
 
+# Write a csv file for diagnostic purposes
+write.csv(cmt_data, "full_raw_export.csv", row.names = F)
 
-# There is currently an infinite loop in the ORGCODE -> RPTORGCODE
-# between 93000 and 93430. To fix, cheat and change 93000
-# (Assistant Director-National Wildlife Refuge System)
-# to report to 90100 (Director-U.S. Fish and Wildlife Service
-if (cmt_data$RPTORGCODE[cmt_data$ORGCODE==93000]==93430) {
-    ind = which(cmt_data$ORGCODE==93000)
-    cmt_data$RPTORGCODE[ind] = 90100
-    cmt_data$loop_orgcode[ind] = 90100
-    cmt_data$pathString[ind] = "90100/93000"
-    warning(paste("There is currently an infinite loop in the ORGCODE -> RPTORGCODE",
-                  "between 93000 and 93430. To fix, cheat and change 93000",
-                  "(Assistant Director-National Wildlife Refuge System)",
-                  "to report to 90100 (Director-U.S. Fish and Wildlife Service).",
-                  "Flagged for update to JAO.", sep = "\n"))
-    rm(ind)
+# Remove any rows from consideration if the RPTORGCODE does not exist.
+# write diagnostic file and warn user.
+nonexistent_rptorgcode <- subset(cmt_data, !(RPTORGCODE %in% ORGCODE), select = RPTORGCODE) %>% distinct(.)
+if (nrow(nonexistent_rptorgcode) > 0) {
+    if (file.exists("nonexistent_rptorgcode.csv") {unlink("nonexistent_rptorgcode.csv")})
+    warning(paste("The following orgcodes are listed to in RPTORGCODE but not ORGCODE.",
+        "Likely cause, incomplete updates to CMT. Any ORGCODEs that below these in the hierarchy will",
+        "be disregarded in constructing the trees. Written to nonexistent_rptorgcodes.csv",
+        "Missing RPTORGCODES:", paste(nonexistent_rptorgcode, sep = ", ")))
+    write.csv(nonexistent_rptorgcode, "nonexistent_rptorgcode.csv", row.names = F)
+} else {
+    # Otherwise create nonsense value to use in later function
+    nonexistent_rptorgcode = -9999
 }
 
-# ROW 99660 has been deleted but still exists in RPTORGCODE,
-# Flagged for update to IT. And add in here manually for now.
-# Cheat for now and change it to 99661
-if (any(cmt_data$RPTORGCODE == 99660) & !any(cmt_data$ORGCODE == 99660)) {
-    inds = which(cmt_data$RPTORGCODE==99660)
-    cmt_data$RPTORGCODE[inds] = 99661
-    cmt_data$loop_orgcode[inds] = 99661
-    cmt_data$pathString[inds] = paste0("99661/", cmt_data$ORGCODE[inds])
-    warning(paste("ORGCODE = 99660 has been deleted but still exists in RPTORGCODE",
-                  "Flagged for update to JAO And add in here manually for now.",
-                  "Cheat for now and change it to 99661",sep = "\n"))
-    rm(inds)
-}
+# Look for any immediate infinite loops (i.e., one record's RPTORGCODE points
+# right back at it). Warn user and write diagnostic file.
+
+
 
 
 
@@ -85,6 +76,8 @@ if (any(cmt_data$RPTORGCODE == 99660) & !any(cmt_data$ORGCODE == 99660)) {
 # See here on having only  "..." as a parameter
 update_row <- function(...) {
     row <- tibble(...)
+
+    #print(paste(row$ORGCODE, row$RPTORGCODE, row$pathSting))
     # Just return the row if you're already at directors office
     if (row$loop_orgcode == 90100) {return(row)}
 
