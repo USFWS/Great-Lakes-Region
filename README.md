@@ -6,10 +6,12 @@ Create a series of collapsible trees in html widgets that display the current US
 ## Background
 Each winter the USFWS updates the Corporate Master Table mainly by examining the web interface. While this tends to keep contact information up to date, it is very difficult to look at the hierarchy itself for any corrections that are needed. This is a common problem for the National Wildlife Refuge System (NWRS) as stations are frequently 'complexed' or 'decomplexed' for administrative reasons.
 
+   
+
 ## A little detail
 This R script downloads the full USFWS Corporate Master Table (CMT) from the API described [here](https://intranet.fws.gov/cmt/HelpFiles/14_Web_Services.htm). It then creates a data tree and exports a series of collapseableTree html widgets into a local folder. The first exported trees shows the full organization, but this can be hard to look at given HQ's large number of offices. Therefore, the script also produces a hierarchy for each region alone, and then for each legacy region's NWRS by itself. The nodes are labeled by orgcode, but if you hover over any node it will display the name and cost center code for that node.
 
-You must be on the USFWS intranet for this script to run. 
+You must be on the USFWS intranet for this script to run. To ask questions about the CMT, see the [USFWS Joint Administrative Office Sharepoint site](https://doimspp.sharepoint.com/sites/fws-FF10G23500/SitePages/Financial-Systems-Contacts.aspx) (access for USFWS employees only). To make updates to the CMT, you'll need form 3-2144 found there.
 
 ## Contact
 Andy Allstadt <andrew_allstadt@fws.gov>
